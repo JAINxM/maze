@@ -1,0 +1,95 @@
+﻿<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Maze Game</title>
+    <link rel="stylesheet" href="./css/styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand__title">Maze Game</div>
+          <div class="brand__subtitle">DFS-generated maze • BFS solver</div>
+        </div>
+
+        <div class="controls" role="group" aria-label="Game controls">
+          <label class="control">
+            <span class="control__label">Difficulty</span>
+            <select id="difficulty" class="select" aria-label="Difficulty">
+              <option value="easy">Easy (10×10)</option>
+              <option value="medium" selected>Medium (20×20)</option>
+              <option value="hard">Hard (35×35)</option>
+            </select>
+          </label>
+
+          <button id="newGame" class="btn btn--primary" type="button">New Game</button>
+          <button id="restart" class="btn" type="button" title="Restart the same maze">Restart</button>
+
+          <div class="divider" aria-hidden="true"></div>
+
+          <button id="hint" class="btn" type="button">Hint (<span id="hintsLeft">3</span>)</button>
+          <button id="solve" class="btn" type="button">Show Solution</button>
+          <label class="toggle" title="Enable/disable sound">
+            <input id="sound" type="checkbox" checked />
+            <span class="toggle__ui"></span>
+            <span class="toggle__label">Sound</span>
+          </label>
+        </div>
+      </header>
+
+      <main class="main">
+        <section class="stage" aria-label="Maze canvas">
+          <canvas id="canvas" class="canvas" width="800" height="800"></canvas>
+          <div class="help">
+            Move: swipe/drag on the maze, or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd>
+          </div>
+        </section>
+
+        <aside class="hud" aria-label="Stats">
+          <div class="card">
+            <div class="card__label">Time</div>
+            <div id="time" class="card__value">00:00.0</div>
+          </div>
+          <div class="card">
+            <div class="card__label">Moves</div>
+            <div id="moves" class="card__value">0</div>
+          </div>
+          <div class="card">
+            <div class="card__label">Score</div>
+            <div id="score" class="card__value">0</div>
+            <div class="card__hint">Lower is better (time + moves)</div>
+          </div>
+          <div class="card">
+            <div class="card__label">Best</div>
+            <div id="best" class="card__value">—</div>
+            <div id="bestMeta" class="card__hint"></div>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <div id="winOverlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="winTitle" hidden>
+      <div class="modal">
+        <div class="modal__header">
+          <div id="winTitle" class="modal__title">You escaped!</div>
+          <button id="closeWin" class="iconbtn" type="button" aria-label="Close">✕</button>
+        </div>
+        <div class="modal__body">
+          <div id="winStats" class="winstats"></div>
+          <div id="newBest" class="badge" hidden>New best score</div>
+        </div>
+        <div class="modal__footer">
+          <button id="playAgain" class="btn btn--primary" type="button">New Game</button>
+          <button id="restartWin" class="btn" type="button">Restart</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="./js/game.js"></script>
+  </body>
+</html>
+
+
+
