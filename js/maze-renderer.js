@@ -84,7 +84,13 @@ export class MazeRenderer {
     // Maze walls.
     ctx.save();
     ctx.strokeStyle = wallColor;
-    ctx.lineWidth = Math.max(4, Math.floor(this.dpr * 3.2)); // thicker walls
+
+    // Scale wall thickness with cell size so hard (small cells) doesn't look too bold.
+    const wallWidth = Math.max(
+      2,
+      Math.min(Math.round(this.cellSize * 0.135), Math.round(this.dpr * 3.5))
+    );
+    ctx.lineWidth = wallWidth;
     ctx.lineCap = "round";
 
     for (let i = 0; i < this.maze.size; i++) {
