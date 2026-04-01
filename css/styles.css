@@ -39,12 +39,17 @@ body {
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji",
     "Segoe UI Emoji";
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .app {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 18px 18px 22px;
+  padding: 8px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
 }
 
 .topbar {
@@ -214,10 +219,12 @@ html[data-theme="light"] .toggle__ui::after {
 }
 
 .main {
-  display: grid;
-  grid-template-columns: minmax(340px, 1fr) 260px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   gap: 16px;
   margin-top: 16px;
+  min-height: 0;
 }
 
 .stage {
@@ -226,15 +233,21 @@ html[data-theme="light"] .toggle__ui::after {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  padding: 14px;
-  min-height: 420px;
+  padding: clamp(4px, 2vw, 14px);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .canvas {
   touch-action: none;
-  width: 100%;
+  width: min(100%, 85vh);
+  aspect-ratio: 1 / 1;
   height: auto;
-  min-height: 500px !important;
+  flex: 0 0 auto;
+  max-width: 100%;
+  margin: 0 auto;
   display: block;
   border-radius: var(--radius-sm);
   background: rgba(0, 0, 0, 0.18);
@@ -381,25 +394,32 @@ kbd {
 }
 
 @media (max-width: 980px) {
-  .stage {
-    min-height: 60vh;
-  }
-  .canvas {
-    min-height: 60vh !important;
-  }
+  /* Let the maze canvas size itself (square) without forcing extra vertical space. */
 }
 
 @media (max-width: 560px) {
   .topbar {
     flex-direction: column;
     align-items: stretch;
-    padding: 12px;
+    gap: 10px;
+    padding: 10px;
+  }
+  .brand__subtitle {
+    display: none;
   }
   .app {
-    padding: 12px;
+    padding: 10px;
+    min-height: 100dvh;
+  }
+  .main {
+    gap: 12px;
+    margin-top: 12px;
   }
   .stage {
     padding: 8px;
+  }
+  .canvas {
+    width: min(100%, 42vh);
   }
   .controls {
     justify-content: flex-start;
@@ -407,7 +427,17 @@ kbd {
     flex-wrap: wrap;
   }
   .hud {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .card {
+    padding: 10px 10px;
+  }
+  .card__value {
+    font-size: 20px;
+  }
+  .card__hint {
+    display: none;
   }
   .help {
     position: static;
@@ -415,9 +445,16 @@ kbd {
     border-radius: 12px;
     font-size: 11px;
   }
-  .btn, .select {
+  .btn,
+  .select {
     padding: 8px 10px;
     font-size: 14px;
+  }
+}
+
+@media (max-width: 360px) {
+  .hud {
+    grid-template-columns: 1fr;
   }
 }
 

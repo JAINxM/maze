@@ -38,12 +38,12 @@ export class MazeRenderer {
 
   _resizeToDisplaySize() {
     const rect = this.canvas.getBoundingClientRect();
-    const cssW = Math.max(280, Math.floor(rect.width));
-    const cssH = Math.max(280, Math.floor(rect.height)); // use rect height for better mobile fit
+    // Keep the canvas square so the maze fills the available space without leaving
+    // unused vertical area on tall screens.
+    const cssSize = Math.max(280, Math.floor(Math.min(rect.width, rect.height || rect.width)));
 
-    this.canvas.width = cssW * this.dpr;
-    this.canvas.height = cssH * this.dpr;
-    this.canvas.style.height = `${cssH}px`;
+    this.canvas.width = cssSize * this.dpr;
+    this.canvas.height = cssSize * this.dpr;
 
     this.staticCanvas.width = this.canvas.width;
     this.staticCanvas.height = this.canvas.height;
