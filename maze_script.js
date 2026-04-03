@@ -330,6 +330,13 @@ function buildNextStepToEnd(maze, endIndex) {
 // ===== END solver.js =====
 
 // ===== START maze-renderer.js =====
+const DEBUG = false;
+const debugLog = (...args) => {
+  if (!DEBUG) return;
+  // eslint-disable-next-line no-console
+  console.log(...args);
+};
+
 function isLightTheme() {
   return document.documentElement.getAttribute("data-theme") === "light";
 }
@@ -342,7 +349,8 @@ class MazeRenderer {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d", { alpha: true, desynchronized: true });
-    this.dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
+    // Cap DPR for performance on mobile/high-DPI screens.
+    this.dpr = Math.max(1, Math.min(2, Math.round(window.devicePixelRatio || 1)));
 
     // Offscreen for static maze drawing (walls + start/end).
     this.staticCanvas = document.createElement("canvas");
@@ -355,10 +363,10 @@ class MazeRenderer {
 
   setMaze(maze) {
     this.maze = maze;
-    console.log('DEBUG: setMaze called, maze:', maze);
+    debugLog("DEBUG: setMaze called, maze:", maze);
     this._resizeToDisplaySize();
     this._renderStatic();
-    console.log('DEBUG: Static render complete, cellSize:', this.cellSize, 'canvas size:', this.canvas.width, 'x', this.canvas.height);
+    debugLog("DEBUG: Static render complete, cellSize:", this.cellSize, "canvas size:", this.canvas.width, "x", this.canvas.height);
   }
 
   resize() {
@@ -815,7 +823,7 @@ class MazeGame {
     // Modules
     this.sfx = new SoundFX();
     this.renderer = new MazeRenderer(this.canvas);
-    console.log('DEBUG: MazeRenderer created, canvas:', this.canvas);
+    debugLog("DEBUG: MazeRenderer created, canvas:", this.canvas);
 
     // State
     this.difficulty = this.difficultySelect.value;
@@ -935,27 +943,86 @@ class MazeGame {
     });
 
     // Pointer controls (mouse drag + touch swipe).
-    const swipe = { active: false, id: 0, x: 0, y: 0 };
-    const swipeThreshold = 24;
+    const swipe = {
+      active: false,
+      id: 0,
+      lastX: 0,
+      lastY: 0,
+      accumX: 0,
+      accumY: 0,
+      raf: 0,
+      thresholdPx: 18,
+    };
+    this._swipe = swipe;
 
     const endSwipe = (e) => {
       if (!swipe.active) return;
       if (e.pointerId !== swipe.id) return;
       swipe.active = false;
       swipe.id = 0;
+      swipe.accumX = 0;
+      swipe.accumY = 0;
+      if (swipe.raf) {
+        cancelAnimationFrame(swipe.raf);
+        swipe.raf = 0;
+      }
+    };
+
+    const requestSwipeRAF = () => {
+      if (!swipe.active) return;
+      if (swipe.raf) return;
+      swipe.raf = requestAnimationFrame(processSwipe);
+    };
+    this._requestSwipeRAF = requestSwipeRAF;
+
+    const processSwipe = () => {
+      swipe.raf = 0;
+      if (!swipe.active) return;
+      if (!this.overlay.hidden) return;
+      if (!this.player) return;
+
+      // If we're mid-animation, wait for `_onMoveCommitted()` to kick us again.
+      if (this.player.animating) return;
+
+      const ax = swipe.accumX;
+      const ay = swipe.accumY;
+      const t = swipe.thresholdPx;
+      if (Math.abs(ax) < t && Math.abs(ay) < t) return;
+
+      let dr = 0;
+      let dc = 0;
+      if (Math.abs(ax) > Math.abs(ay)) dc = ax > 0 ? 1 : -1;
+      else dr = ay > 0 ? 1 : -1;
+
+      // Consume one "step" worth of drag so we don't repeat the same blocked move forever.
+      if (dc) swipe.accumX -= dc * t;
+      if (dr) swipe.accumY -= dr * t;
+
+      this._startIfNeeded();
+      const ok = this.player.tryMove(dr, dc, performance.now());
+      if (ok) {
+        this.sfx.move();
+        this._scheduleRAF();
+      } else {
+        // If blocked, clear leftover accumulation for that direction.
+        swipe.accumX = 0;
+        swipe.accumY = 0;
+      }
     };
 
     this.canvas.addEventListener(
       "pointerdown",
-      async (e) => {
+      (e) => {
         if (!this.overlay.hidden) return;
         if (e.button != null && e.button !== 0) return;
 
-        await ensureAudio();
+        void ensureAudio();
         swipe.active = true;
         swipe.id = e.pointerId;
-        swipe.x = e.clientX;
-        swipe.y = e.clientY;
+        swipe.lastX = e.clientX;
+        swipe.lastY = e.clientY;
+        swipe.accumX = 0;
+        swipe.accumY = 0;
         this.canvas.setPointerCapture?.(e.pointerId);
         e.preventDefault();
       },
@@ -964,44 +1031,35 @@ class MazeGame {
 
     this.canvas.addEventListener(
       "pointermove",
-      async (e) => {
+      (e) => {
         if (!swipe.active) return;
         if (e.pointerId !== swipe.id) return;
         if (!this.player) return;
 
-        const dx = e.clientX - swipe.x;
-        const dy = e.clientY - swipe.y;
-        if (Math.abs(dx) < swipeThreshold && Math.abs(dy) < swipeThreshold) return;
-
         e.preventDefault();
-        let dr = 0;
-        let dc = 0;
-        if (Math.abs(dx) > Math.abs(dy)) dc = dx > 0 ? 1 : -1;
-        else dr = dy > 0 ? 1 : -1;
-
-        swipe.x = e.clientX;
-        swipe.y = e.clientY;
-
-        this._startIfNeeded();
-        const ok = this.player.tryMove(dr, dc, performance.now());
-        if (!ok) return;
-        this.sfx.move();
-        this._scheduleRAF();
+        const dx = e.clientX - swipe.lastX;
+        const dy = e.clientY - swipe.lastY;
+        swipe.lastX = e.clientX;
+        swipe.lastY = e.clientY;
+        swipe.accumX += dx;
+        swipe.accumY += dy;
+        requestSwipeRAF();
       },
       { passive: false }
     );
 
     this.canvas.addEventListener("pointerup", endSwipe);
-    this.canvas.addEventListener("pointercancel", endSwipe);  }
+    this.canvas.addEventListener("pointercancel", endSwipe);
+  }
 
   newGame({ reseed }) {
     const { rows, cols } = DIFFICULTIES[this.difficulty] ?? DIFFICULTIES.medium;
     const seed = reseed ? (Date.now() ^ (Math.random() * 2 ** 31)) >>> 0 : (this.maze?.seed ?? Date.now());
 
     this.maze = MazeGenerator.generate(rows, cols, seed);
-    console.log('DEBUG: Generated maze, size:', this.maze.size, 'start:', this.maze.start);
+    debugLog("DEBUG: Generated maze, size:", this.maze.size, "start:", this.maze.start);
     this.renderer.setMaze(this.maze);
-    console.log('DEBUG: Called setMaze');
+    debugLog("DEBUG: Called setMaze");
 
     this.solutionPath = bfsShortestPath(this.maze, this.maze.start, this.maze.end) ?? null;
     this.nextToEnd = buildNextStepToEnd(this.maze, this.maze.end);
@@ -1023,9 +1081,9 @@ class MazeGame {
     this.fogEnabled = false;
 
     this.solutionsRemaining = this.difficulty === 'easy' ? 1 : this.difficulty === 'medium' ? 2 : 3;
-    console.log('DEBUG newGame: difficulty=' + this.difficulty + ', solutionsRemaining=' + this.solutionsRemaining);
+    debugLog("DEBUG newGame: difficulty=" + this.difficulty + ", solutionsRemaining=" + this.solutionsRemaining);
     this.solutionsLeftEl.textContent = String(this.solutionsRemaining);
-    console.log('DEBUG newGame: updated solutionsLeft to', this.solutionsLeftEl.textContent);
+    debugLog("DEBUG newGame: updated solutionsLeft to", this.solutionsLeftEl.textContent);
 
     this.moves = 0;
     this.startedAt = 0;
@@ -1043,9 +1101,9 @@ class MazeGame {
     this.fogEnabled = false;
 
     this.solutionsRemaining = this.difficulty === 'easy' ? 1 : this.difficulty === 'medium' ? 2 : 3;
-    console.log('DEBUG restart: difficulty=' + this.difficulty + ', solutionsRemaining=' + this.solutionsRemaining);
+    debugLog("DEBUG restart: difficulty=" + this.difficulty + ", solutionsRemaining=" + this.solutionsRemaining);
     this.solutionsLeftEl.textContent = String(this.solutionsRemaining);
-    console.log('DEBUG restart: updated textContent to', this.solutionsLeftEl.textContent);
+    debugLog("DEBUG restart: updated textContent to", this.solutionsLeftEl.textContent);
 
     this.moves = 0;
     this.startedAt = 0;
@@ -1058,13 +1116,13 @@ class MazeGame {
   }
 
   useSolution() {
-    console.log('DEBUG useSolution: called, remaining=' + this.solutionsRemaining);
+    debugLog("DEBUG useSolution: called, remaining=" + this.solutionsRemaining);
     if (this.solutionsRemaining <= 0) return;
 
     this.solutionsRemaining -= 1;
-    console.log('DEBUG useSolution: updated remaining to ' + this.solutionsRemaining);
+    debugLog("DEBUG useSolution: updated remaining to " + this.solutionsRemaining);
     this.solutionsLeftEl.textContent = String(this.solutionsRemaining);
-    console.log('DEBUG useSolution: updated text to', this.solutionsLeftEl.textContent);
+    debugLog("DEBUG useSolution: updated text to", this.solutionsLeftEl.textContent);
 
     this.showSolution = true;
     this._fogWasEnabled = this.fogEnabled;
@@ -1097,6 +1155,8 @@ class MazeGame {
     }
 
     this.renderOnce();
+    // If the user is still dragging, keep processing swipe after each committed move.
+    this._requestSwipeRAF?.();
   }
 
   _elapsedMs(now = performance.now()) {
@@ -1181,9 +1241,6 @@ class MazeGame {
   }
 
   renderOnce() {
-    console.log('DEBUG: renderOnce called');
-    const now = performance.now();
-
     this.renderer.render({
       playerPixel: this.player.pixel,
       fogEnabled: this.fogEnabled,
@@ -1214,6 +1271,11 @@ class MazeGame {
   }
 }
 
-new MazeGame();
+// DevTools helpers (so you can tweak things from the Console)
+window.mazeGame = new MazeGame();
+window.enableUnlimitedSolutions = (count = 999) => {
+  if (!window.mazeGame) return;
+  window.mazeGame.solutionsRemaining = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 999;
+  window.mazeGame.solutionsLeftEl.textContent = String(window.mazeGame.solutionsRemaining);
+};
 // ===== END game.js =====
-
