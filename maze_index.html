@@ -11,16 +11,16 @@
       <header class="topbar">
         <div class="brand">
           <div class="brand__title">Maze Game</div>
-          <div class="brand__subtitle">DFS-generated maze • BFS solver</div>
+          <!-- <div class="brand__subtitle">DFS-generated maze • BFS solver</div> -->
         </div>
 
         <div class="controls" role="group" aria-label="Game controls">
           <label class="control">
-            <span class="control__label">Difficulty</span>
+            <!-- <span class="control__label">Difficulty</span> -->
             <select id="difficulty" class="select" aria-label="Difficulty">
               <option value="easy">Easy (10×10)</option>
               <option value="medium" selected>Medium (20×20)</option>
-              <option value="hard">Hard (35×35)</option>
+              <option value="hard">Hard (30×30)</option>
             </select>
           </label>
 
@@ -29,8 +29,7 @@
 
           <div class="divider" aria-hidden="true"></div>
 
-          <button id="hint" class="btn" type="button">Hint (<span id="hintsLeft">3</span>)</button>
-          <button id="solve" class="btn" type="button">Show Solution</button>
+          <button id="solve" class="btn" type="button">Show Solution (<span id="solutionsLeft">3</span>)</button>
           <label class="toggle" title="Enable/disable sound">
             <input id="sound" type="checkbox" checked />
             <span class="toggle__ui"></span>

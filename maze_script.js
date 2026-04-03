@@ -484,8 +484,6 @@ class MazeRenderer {
     fogRadiusCells,
     showSolution,
     solutionPath,
-    hintIndex,
-    hintPulse = 0,
   }) {
     if (!this.maze) return;
     const ctx = this.ctx;
@@ -500,11 +498,6 @@ class MazeRenderer {
     // Fog of war overlay (then player on top so the avatar always stays visible).
     if (fogEnabled) {
       this._drawFog(ctx, playerPixel, fogRadiusCells);
-    }
-
-    // Hint highlight.
-    if (hintIndex != null && hintIndex >= 0 && hintIndex < this.maze.size) {
-      this._drawHint(ctx, hintIndex, hintPulse);
     }
 
     // Player.
@@ -544,22 +537,6 @@ class MazeRenderer {
     ctx.arc(playerPixel.x, playerPixel.y, radius, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.restore();
-  }
-
-  _drawHint(ctx, index, pulse) {
-    const { r, c } = this.maze.rc(index);
-    const x = this.padding * this.dpr + c * this.cellSize;
-    const y = this.padding * this.dpr + r * this.cellSize;
-    const s = this.cellSize;
-
-    const a = 0.25 + 0.35 * clamp01(pulse);
-    ctx.save();
-    ctx.strokeStyle = `rgba(46, 229, 157, ${a})`;
-    ctx.lineWidth = Math.max(3, Math.floor(this.dpr * 2));
-    ctx.shadowColor = "rgba(46, 229, 157, 0.55)";
-    ctx.shadowBlur = Math.max(6, Math.floor(this.dpr * 5));
-    ctx.strokeRect(x + 5, y + 5, s - 10, s - 10);
     ctx.restore();
   }
 
@@ -762,7 +739,7 @@ class SoundFX {
 const DIFFICULTIES = {
   easy: { rows: 10, cols: 10 },
   medium: { rows: 20, cols: 20 },
-  hard: { rows: 35, cols: 35 },
+  hard: { rows: 30, cols: 30 },
 };
 
 function $(id) {
@@ -818,8 +795,7 @@ class MazeGame {
     this.newGameBtn = $("newGame");
     this.restartBtn = $("restart");
     this.solveBtn = $("solve");
-    this.hintBtn = $("hint");
-    this.hintsLeftEl = $("hintsLeft");
+    this.solutionsLeftEl = $("solutionsLeft");
     this.timeEl = $("time");
     this.movesEl = $("moves");
     this.scoreEl = $("score");
@@ -854,9 +830,7 @@ class MazeGame {
     this.fogEnabled = false;
     this.fogRadiusCells = 2.35;
 
-    this.hintsRemaining = 3;
-    this.hintIndex = null;
-    this.hintPulseT0 = 0;
+    this.solutionsRemaining = 3;
 
     this.moves = 0;
     this.startedAt = 0;
@@ -912,13 +886,7 @@ class MazeGame {
     this.solveBtn.addEventListener("click", async () => {
       await ensureAudio();
       this.sfx.click();
-      this.toggleSolution();
-    });
-
-    this.hintBtn.addEventListener("click", async () => {
-      await ensureAudio();
-      this.sfx.click();
-      this.useHint();
+      this.useSolution();
     });
 
     // Win overlay controls
@@ -1040,7 +1008,6 @@ class MazeGame {
 
     this.showSolution = false;
     this._fogWasEnabled = false;
-    this.solveBtn.textContent = "Show Solution";
 
     if (!this.player) {
       this.player = new PlayerController({
@@ -1055,9 +1022,10 @@ class MazeGame {
 
     this.fogEnabled = false;
 
-    this.hintsRemaining = 3;
-    this.hintIndex = null;
-    this.hintsLeftEl.textContent = String(this.hintsRemaining);
+    this.solutionsRemaining = this.difficulty === 'easy' ? 1 : this.difficulty === 'medium' ? 2 : 3;
+    console.log('DEBUG newGame: difficulty=' + this.difficulty + ', solutionsRemaining=' + this.solutionsRemaining);
+    this.solutionsLeftEl.textContent = String(this.solutionsRemaining);
+    console.log('DEBUG newGame: updated solutionsLeft to', this.solutionsLeftEl.textContent);
 
     this.moves = 0;
     this.startedAt = 0;
@@ -1071,13 +1039,13 @@ class MazeGame {
 
   restart() {
     this.showSolution = false;
-    this.solveBtn.textContent = "Show Solution";
 
     this.fogEnabled = false;
 
-    this.hintsRemaining = 3;
-    this.hintIndex = null;
-    this.hintsLeftEl.textContent = String(this.hintsRemaining);
+    this.solutionsRemaining = this.difficulty === 'easy' ? 1 : this.difficulty === 'medium' ? 2 : 3;
+    console.log('DEBUG restart: difficulty=' + this.difficulty + ', solutionsRemaining=' + this.solutionsRemaining);
+    this.solutionsLeftEl.textContent = String(this.solutionsRemaining);
+    console.log('DEBUG restart: updated textContent to', this.solutionsLeftEl.textContent);
 
     this.moves = 0;
     this.startedAt = 0;
@@ -1089,36 +1057,28 @@ class MazeGame {
     this.renderOnce();
   }
 
-  toggleSolution() {
-    this.showSolution = !this.showSolution;
-    this.solveBtn.textContent = this.showSolution ? "Hide Solution" : "Show Solution";
+  useSolution() {
+    console.log('DEBUG useSolution: called, remaining=' + this.solutionsRemaining);
+    if (this.solutionsRemaining <= 0) return;
 
-    // UX: a full solution is most useful without fog.
-    if (this.showSolution) {
-      this._fogWasEnabled = this.fogEnabled;
-      this.fogEnabled = false;
-      if (this.fogToggle) this.fogToggle.checked = false;
-    } else {
-      this.fogEnabled = !!this._fogWasEnabled;
-      if (this.fogToggle) this.fogToggle.checked = this.fogEnabled;
-    }
+    this.solutionsRemaining -= 1;
+    console.log('DEBUG useSolution: updated remaining to ' + this.solutionsRemaining);
+    this.solutionsLeftEl.textContent = String(this.solutionsRemaining);
+    console.log('DEBUG useSolution: updated text to', this.solutionsLeftEl.textContent);
+
+    this.showSolution = true;
+    this._fogWasEnabled = this.fogEnabled;
+    this.fogEnabled = false;
+    if (this.fogToggle) this.fogToggle.checked = false;
 
     this.renderOnce();
-  }
 
-  useHint() {
-    if (this.hintsRemaining <= 0) return;
-    if (!this.nextToEnd) return;
-
-    const next = this.nextToEnd[this.player.cellIndex];
-    if (next < 0 || next === this.player.cellIndex) return;
-
-    this.hintsRemaining -= 1;
-    this.hintsLeftEl.textContent = String(this.hintsRemaining);
-
-    this.hintIndex = next;
-    this.hintPulseT0 = performance.now();
-    this._scheduleRAF();
+    setTimeout(() => {
+      this.showSolution = false;
+      this.fogEnabled = !!this._fogWasEnabled;
+      if (this.fogToggle) this.fogToggle.checked = this.fogEnabled;
+      this.renderOnce();
+    }, 3000);
   }
 
   _startIfNeeded() {
@@ -1129,7 +1089,6 @@ class MazeGame {
 
   _onMoveCommitted() {
     this.moves += 1;
-    this.hintIndex = null;
     this._renderHud();
 
     if (this.player.cellIndex === this.maze.end) {
@@ -1224,7 +1183,6 @@ class MazeGame {
   renderOnce() {
     console.log('DEBUG: renderOnce called');
     const now = performance.now();
-    const hintPulse = this.hintIndex != null ? (Math.sin((now - this.hintPulseT0) / 140) + 1) / 2 : 0;
 
     this.renderer.render({
       playerPixel: this.player.pixel,
@@ -1232,8 +1190,6 @@ class MazeGame {
       fogRadiusCells: this.fogRadiusCells,
       showSolution: this.showSolution,
       solutionPath: this.solutionPath,
-      hintIndex: this.hintIndex,
-      hintPulse,
     });
   }
 
@@ -1248,11 +1204,6 @@ class MazeGame {
       if (this.player.animating) {
         this.player.tick(now);
         needsMore = true;
-      }
-
-      if (this.hintIndex != null) {
-        if (now - this.hintPulseT0 < 1400) needsMore = true;
-        else this.hintIndex = null;
       }
 
       this.renderOnce();
